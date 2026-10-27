@@ -1,21 +1,25 @@
 import os
 import requests
 
-# Токен будет браться из переменной окружения (безопасно)
 HF_TOKEN = os.getenv("HF_TOKEN")
-API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+# Используем OpenAI-совместимый роутер Hugging Face
+API_URL = "https://router.huggingface.co/v1/chat/completions"
+headers = {
+    "Authorization": f"Bearer {HF_TOKEN}",
+    "Content-Type": "application/json"
+}
 
 def query(payload):
     response = requests.post(API_URL, headers=headers, json=payload)
+    response.raise_for_status()
     return response.json()
 
-# Ваш запрос
 prompt = "Привет! Напиши короткий текст о космосе."
-output = query({
-    "inputs": prompt,
-    "parameters": {"max_new_tokens": 500}
-})
+payload = {
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "messages": [{"role": "user", "content": prompt}],
+    "max_tokens": 500
+}
 
-# Печатаем ответ (структура ответа может быть списком словарей)
-print(output[0]['generated_text'] if isinstance(output, list) else output)
+output = query(payload)
+print(output["choices"][0]["message"]["content"])
