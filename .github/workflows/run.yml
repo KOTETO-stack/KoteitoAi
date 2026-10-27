@@ -1,39 +1,38 @@
-name: Full AI Pipeline
+name: Generate Image with Cloudflare
 on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Ваш запрос'
+        description: 'Промпт для картинки'
         required: true
-        default: 'A cute cat programmer typing on a futuristic laptop'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
-      - name: Install dependencies
-        run: pip install requests gradio_client
-          
-      - name: Run pipeline
+      - name: Install deps
+        run: pip install requests
+      - name: Generate Image
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          USER_PROMPT: ${{ github.event.inputs.prompt }}
-        run: python main.py
-        
-      - name: Upload AI Results
+          PROMPT: ${{ github.event.inputs.prompt }}
+        run: |
+          python -c "
+          import os, requests
+          url = f'https://api.cloudflare.com/client/v4/accounts/{os.getenv(\"CF_ACCOUNT_ID\")}/ai/run/@cf/black-forest-labs/flux-1-schnell'
+          headers = {'Authorization': f'Bearer {os.getenv(\"CF_API_TOKEN\")}'}
+          res = requests.post(url, headers=headers, json={'prompt': os.getenv('PROMPT')})
+          open('generated.jpg', 'wb').write(res.content)
+          "
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ai-results
-          path: |
-            text.txt
-            image.jpg
-            video.mp4
-          if-no-files-found: warn
+          name: generated-image
+          path: generated.jpg
