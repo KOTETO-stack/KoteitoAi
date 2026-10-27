@@ -1,11 +1,11 @@
-name: Run Cloudflare AI
+name: Full AI Pipeline
 on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Ваш запрос к ИИ (текст и картинка)'
+        description: 'Ваш запрос (текст, картинка и видео)'
         required: true
-        default: 'Напиши приветствие и сгенерируй картинку с котом-программистом'
+        default: 'A cat programmer typing on a laptop'
 
 jobs:
   build:
@@ -13,26 +13,26 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           
       - name: Install dependencies
-        run: pip install requests
-        
-      - name: Run script
+        run: pip install requests gradio_client
+          
+      - name: Run pipeline
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           USER_PROMPT: ${{ github.event.inputs.prompt }}
         run: python main.py
         
-      # Этот шаг сохраняет сгенерированную картинку, чтобы вы могли ее скачать
-      - name: Upload generated image
+      # Сохраняем ВСЕ файлы (и картинку, и видео) в артефакты
+      - name: Upload AI Results
         uses: actions/upload-artifact@v4
         with:
-          name: generated-image
-          path: generated_image.jpg
-          if-no-files-found: warn
+          name: ai-results
+          path: |
+            image.jpg
+            video.mp4
