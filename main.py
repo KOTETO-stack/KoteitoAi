@@ -11,19 +11,29 @@ headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/
 # --- 1. ТЕКСТ (Cloudflare -> Pollinations) ---
 print("1. Генерируем текст...")
 text_result = ""
+# Системный промпт заставляет модель отвечать на русском
+system_prompt = "Ты — KoteitoAI, умный и полезный помощник. Всегда отвечай на русском языке, кратко и по делу."
+
 try:
     url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/deepseek-ai/deepseek-v4-flash-0731"
-    res = requests.post(url, headers=headers, json={"messages": [{"role": "user", "content": user_prompt}]}, timeout=15)
+    payload = {
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+    }
+    res = requests.post(url, headers=headers, json=payload, timeout=20)
     res.raise_for_status()
     text_result = res.json()["result"]["response"]
-    print("✅ Текст от Cloudflare")
+    print("✅ Текст от Cloudflare (на русском)")
 except Exception as e:
     print(f"⚠️ Cloudflare текст не сработал ({e}). Переключаемся...")
     try:
-        safe_prompt = urllib.parse.quote(user_prompt)
-        res = requests.get(f"https://text.pollinations.ai/{safe_prompt}", timeout=15)
+        # Pollinations тоже понимает русский, если попросить в промпте
+        safe_prompt = urllib.parse.quote(user_prompt + " (ответь на русском)")
+        res = requests.get(f"https://text.pollinations.ai/{safe_prompt}", timeout=20)
         text_result = res.text
-        print("✅ Текст от Pollinations (резерв)")
+        print("✅ Текст от Pollinations (резерв, на русском)")
     except Exception as e2:
         print(f"❌ Ошибка текста: {e2}")
 
@@ -36,7 +46,10 @@ print("\n2. Генерируем картинку...")
 image_success = False
 try:
     url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-    res = requests.post(url, headers=headers, json={"prompt": user_prompt}, timeout=30)
+    # FLUX лучше понимает английские промпты, но мы можем передать русский.
+    # Для надежности можно добавить простой переводчик, но пока оставим так.
+    payload = {"prompt": user_prompt + ", high quality, detailed"}
+    res = requests.post(url, headers=headers, json=payload, timeout=40)
     res.raise_for_status()
     with open("image.jpg", "wb") as f:
         f.write(res.content)
@@ -46,7 +59,7 @@ except Exception as e:
     print(f"⚠️ Cloudflare картинка не сработала ({e}). Переключаемся...")
     try:
         safe_prompt = urllib.parse.quote(user_prompt)
-        res = requests.get(f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1024&height=1024&nologo=true", timeout=30)
+        res = requests.get(f"https://image.pollinations.ai/prompt/{safe_prompt}?width=1024&height=1024&nologo=true", timeout=40)
         res.raise_for_status()
         with open("image.jpg", "wb") as f:
             f.write(res.content)
@@ -72,4 +85,4 @@ if image_success:
     except Exception as e:
         print(f"❌ Ошибка видео: {e}")
 else:
-    print("❌ Видео пропущено, так как картинка не сгенерировалась.")
+    print("❌ Видео пропущено.")
