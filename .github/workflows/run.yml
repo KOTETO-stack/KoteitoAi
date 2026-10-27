@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Ваш запрос (текст, картинка и видео)'
+        description: 'Ваш запрос'
         required: true
-        default: 'A cat programmer typing on a laptop'
+        default: 'A cute cat programmer typing on a futuristic laptop'
 
 jobs:
   build:
@@ -28,11 +28,12 @@ jobs:
           USER_PROMPT: ${{ github.event.inputs.prompt }}
         run: python main.py
         
-      # Сохраняем ВСЕ файлы (и картинку, и видео) в артефакты
       - name: Upload AI Results
         uses: actions/upload-artifact@v4
         with:
           name: ai-results
           path: |
+            text.txt
             image.jpg
             video.mp4
+          if-no-files-found: warn
