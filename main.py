@@ -2,24 +2,30 @@ import os
 import requests
 
 HF_TOKEN = os.getenv("HF_TOKEN")
-# Используем OpenAI-совместимый роутер Hugging Face
-API_URL = "https://router.huggingface.co/v1/chat/completions"
-headers = {
-    "Authorization": f"Bearer {HF_TOKEN}",
-    "Content-Type": "application/json"
-}
+# Используем стабильный бесплатный API
+API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
+headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 def query(payload):
     response = requests.post(API_URL, headers=headers, json=payload)
-    response.raise_for_status()
     return response.json()
 
-prompt = "Привет! Напиши короткий текст о космосе."
-payload = {
-    "model": "Qwen/Qwen2.5-7B-Instruct",
-    "messages": [{"role": "user", "content": prompt}],
-    "max_tokens": 500
-}
+# 1. ЗДЕСЬ МЫ НАСТРАИВАЕМ ХАРАКТЕР МОДЕЛИ ПОД ВАС:
+system_instruction = "Ты — KoteitoAI, умный и креативный помощник. Отвечай кратко, по делу, с легким юмором. Ты эксперт в IT и дизайне."
 
-output = query(payload)
-print(output["choices"][0]["message"]["content"])
+# 2. ВАШ ЗАПРОС:
+user_prompt = "Привет! Как дела? Напиши 3 идеи для стартапа."
+
+# Собираем всё вместе в один текст для модели
+full_prompt = f"<|system|>\n{system_instruction}</s>\n<|user|>\n{user_prompt}</s>\n<|assistant|>\n"
+
+output = query({
+    "inputs": full_prompt,
+    "parameters": {"max_new_tokens": 500, "return_full_text": False}
+})
+
+# Печатаем результат
+if isinstance(output, list) and len(output) > 0:
+    print(output[0]['generated_text'])
+else:
+    print("Ошибка от сервера:", output)
