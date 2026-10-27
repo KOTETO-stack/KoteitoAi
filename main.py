@@ -1,31 +1,31 @@
 import os
 import requests
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-# Используем стабильный бесплатный API
-API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+account_id = os.getenv("CF_ACCOUNT_ID")
+api_token = os.getenv("CF_API_TOKEN")
+user_prompt = os.getenv("USER_PROMPT", "Привет! Расскажи что-нибудь интересное.")
 
-def query(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
-    return response.json()
+api_url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions"
+headers = {
+    "Authorization": f"Bearer {api_token}",
+    "Content-Type": "application/json"
+}
 
-# 1. ЗДЕСЬ МЫ НАСТРАИВАЕМ ХАРАКТЕР МОДЕЛИ ПОД ВАС:
-system_instruction = "Ты — KoteitoAI, умный и креативный помощник. Отвечай кратко, по делу, с легким юмором. Ты эксперт в IT и дизайне."
+payload = {
+    "model": "@cf/meta/llama-3.1-8b-instruct",
+    "messages": [
+        {"role": "system", "content": "Ты — KoteitoAI, умный и полезный помощник. Отвечай кратко и по делу."},
+        {"role": "user", "content": user_prompt}
+    ]
+}
 
-# 2. ВАШ ЗАПРОС:
-user_prompt = "Привет! Как дела? Напиши 3 идеи для стартапа."
-
-# Собираем всё вместе в один текст для модели
-full_prompt = f"<|system|>\n{system_instruction}</s>\n<|user|>\n{user_prompt}</s>\n<|assistant|>\n"
-
-output = query({
-    "inputs": full_prompt,
-    "parameters": {"max_new_tokens": 500, "return_full_text": False}
-})
-
-# Печатаем результат
-if isinstance(output, list) and len(output) > 0:
-    print(output[0]['generated_text'])
-else:
-    print("Ошибка от сервера:", output)
+try:
+    print("Отправляем запрос в Cloudflare...")
+    response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    print("\n--- Ответ ИИ ---")
+    print(result["choices"][0]["message"]["content"])
+except Exception as e:
+    print(f"Ошибка: {e}")
+    print("Сырой ответ (для отладки):", response.text if 'response' in locals() else "Нет ответа")
