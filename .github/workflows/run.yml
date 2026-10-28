@@ -3,9 +3,11 @@ on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Ваш запрос для текста, фото и видео (лучше на английском)'
+        description: 'Запрос'
         required: true
-        default: 'A futuristic cyberpunk city, neon lights'
+      chat_id:
+        description: 'ID чата'
+        required: false
 
 jobs:
   build:
@@ -13,29 +15,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
       - name: Install dependencies
         run: pip install requests gradio_client
-        
       - name: Run pipeline
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # Добавьте TG_BOT_TOKEN в секреты GitHub!
           USER_PROMPT: ${{ github.event.inputs.prompt }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
         run: python main.py
-        
-      - name: Upload All Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: KoteitoAI-Results
-          path: |
-            text.txt
-            image.jpg
-            video.mp4
-          if-no-files-found: warn
