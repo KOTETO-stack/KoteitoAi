@@ -1,0 +1,32 @@
+name: Video Pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Запрос'
+        required: true
+      chat_id:
+        description: 'ID чата'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install requests gradio_client huggingface_hub
+      - name: Run pipeline
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          USER_PROMPT: ${{ github.event.inputs.prompt }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+        run: python main.py
