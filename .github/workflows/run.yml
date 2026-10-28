@@ -1,14 +1,11 @@
-name: KoteitoAI Auto Pipeline
+name: KoteitoAI Full Pipeline
 on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Ваш запрос для текста, фото и видео'
+        description: 'Ваш запрос для текста, фото и видео (лучше на английском)'
         required: true
         default: 'A futuristic cyberpunk city, neon lights'
-  schedule:
-    # Запуск каждый день в 03:00 ночи по UTC (примерно 06:00 по Москве)
-    - cron: '0 3 * * *'
 
 jobs:
   build:
@@ -29,8 +26,8 @@ jobs:
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          # Если запуск по расписанию, берем дефолтный промпт из кода
-          USER_PROMPT: ${{ github.event.inputs.prompt || 'A cute cat programmer, cyberpunk style' }}
+          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }} # Передаем токен GitHub
+          USER_PROMPT: ${{ github.event.inputs.prompt }}
         run: python main.py
         
       - name: Upload All Results
@@ -42,9 +39,3 @@ jobs:
             image.jpg
             video.mp4
           if-no-files-found: warn
-          
-      # Этот шаг не дает GitHub отключить расписание через 60 дней простоя
-      - name: Keepalive Workflow
-        uses: gautamkrishnar/keepalive-workflow@v1
-        with:
-          commit_message: "Keepalive: Automated repository update"
