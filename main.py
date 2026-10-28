@@ -81,3 +81,19 @@ if image_success:
         print(f"❌ Ошибка видео: {e}")
 else:
     print("❌ Видео пропущено (нет исходной картинки).")
+    # --- ОТПРАВКА В ТЕЛЕГРАМ ---
+chat_id = os.getenv("CHAT_ID")
+tg_token = os.getenv("TG_BOT_TOKEN")
+
+if chat_id and tg_token:
+    print("\nОтправляем видео в Telegram...")
+    try:
+        url = f"https://api.telegram.org/bot{tg_token}/sendVideo"
+        with open("video.mp4", "rb") as video_file:
+            files = {'video': video_file}
+            data = {'chat_id': chat_id, 'caption': f'🎬 Ваше видео готово!'}
+            res = requests.post(url, files=files, data=data)
+            res.raise_for_status()
+        print("✅ Видео отправлено!")
+    except Exception as e:
+        print(f"❌ Ошибка Telegram: {e}")
