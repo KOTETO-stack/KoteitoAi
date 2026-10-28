@@ -17,47 +17,66 @@ cf_headers = {"Authorization": f"Bearer {cf_api_token}", "Content-Type": "applic
 print(f"Запрос: {user_prompt}")
 print(f"Chat ID: {chat_id}")
 
-# --- 1. ТЕКСТ (GitHub -> Cloudflare) ---
+# --- 1. ТЕКСТ (GitHub Models -> Cloudflare Qwen) ---
 text_result = ""
 try:
-    print("Генерация текста (GitHub Models)...")
-    gh_url = "https://models.github.ai/inference/chat/completions"
-    res = requests.post(gh_url, headers={"Authorization": f"Bearer {gh_token}", "Content-Type": "application/json"}, 
-        json={"model": "openai/gpt-4o-mini", "messages": [{"role": "user", "content": user_prompt}]}, timeout=30)
+    print("1. Генерация текста (GitHub Models)...")
+    # Исправленный URL для GitHub Models
+    gh_url = "https://models.inference.ai.azure.com/chat/completions"
+    res = requests.post(
+        gh_url, 
+        headers={"Authorization": f"Bearer {gh_token}", "Content-Type": "application/json"}, 
+        json={"model": "gpt-4o-mini", "messages": [{"role": "user", "content": user_prompt}]}, 
+        timeout=30
+    )
     res.raise_for_status()
     text_result = res.json()["choices"][0]["message"]["content"]
+    print("✅ Текст получен от GitHub Models.")
 except Exception as e:
-    print(f"GitHub Models не сработал ({e}). Пробуем Cloudflare Qwen...")
+    print(f"⚠️ GitHub Models не сработал ({e}). Пробуем Cloudflare Qwen...")
     try:
         cf_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account_id}/ai/v1/chat/completions"
-        res = requests.post(cf_url, headers=cf_headers, json={"model": "@cf/qwen/qwen3-30b-a3b-fp8", "messages": [{"role": "user", "content": user_prompt}]}, timeout=20)
+        res = requests.post(
+            cf_url, 
+            headers=cf_headers, 
+            json={"model": "@cf/qwen/qwen3-30b-a3b-fp8", "messages": [{"role": "user", "content": user_prompt}]}, 
+            timeout=20
+        )
         res.raise_for_status()
         text_result = res.json()["choices"][0]["message"]["content"]
+        print("✅ Текст получен от Cloudflare.")
     except Exception as e2:
         text_result = f"Ошибка текста: {e2}"
+        print(f"❌ Все текстовые модели упали: {e2}")
 
 with open("text.txt", "w", encoding="utf-8") as f:
     f.write(text_result)
 
 # --- 2. КАРТИНКА (Cloudflare Flux) ---
-print("Генерация картинки (Cloudflare Flux)...")
+print("\n2. Генерация картинки (Cloudflare Flux)...")
 image_success = False
 try:
     img_url = f"https://api.cloudflare.com/client/v4/accounts/{cf_account_id}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-    res = requests.post(img_url, headers=cf_headers, json={"prompt": user_prompt + ", masterpiece, highly detailed"}, timeout=40)
+    res = requests.post(
+        img_url, 
+        headers=cf_headers, 
+        json={"prompt": user_prompt + ", masterpiece, highly detailed"}, 
+        timeout=40
+    )
     res.raise_for_status()
     with open("image.jpg", "wb") as f:
         f.write(res.content)
     image_success = True
-    print("Картинка готова.")
+    print("✅ Картинка готова.")
 except Exception as e:
-    print(f"Ошибка картинки: {e}")
+    print(f"❌ Ошибка картинки: {e}")
 
 # --- 3. ВИДЕО (Hugging Face) ---
-print("Генерация видео (Hugging Face)... Это займет 3-5 минут.")
+print("\n3. Генерация видео (Hugging Face)... Это займет 3-5 минут.")
 video_success = False
 if image_success:
     try:
+        # Подключаемся к нейросети на Hugging Face
         client = Client("r3gm/wan2-2-fp8da-aoti-preview")
         result = client.predict(
             input_image=handle_file("image.jpg"),
@@ -66,14 +85,15 @@ if image_success:
         )
         shutil.copy(result, "video.mp4")
         video_success = True
-        print("Видео готово.")
+        print("✅ Видео готово.")
     except Exception as e:
-        print(f"Ошибка видео: {e}")
+        print(f"❌ Ошибка видео: {e}")
+else:
+    print("❌ Видео пропущено (нет исходной картинки).")
 
 # --- 4. ОТПРАВКА В TELEGRAM ---
+print("\n4. Отправка результатов в Telegram...")
 if chat_id and tg_token:
-    print("Отправка в Telegram...")
-    
     # Отправляем текст
     try:
         requests.post(f"https://api.telegram.org/bot{tg_token}/sendMessage", 
@@ -98,5 +118,7 @@ if chat_id and tg_token:
                     data={"chat_id": chat_id, "caption": "🎬 Видео готово!"}, files={"video": video})
         except Exception as e:
             print(f"Ошибка отправки видео: {e}")
+else:
+    print("⚠️ Не отправлено в Telegram: отсутствует Chat ID или TG_BOT_TOKEN.")
 
-print("Процесс завершен!")
+print("\nПроцесс завершен!")
