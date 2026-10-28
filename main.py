@@ -12,7 +12,7 @@ user_prompt = os.getenv("USER_PROMPT", "Космический кот-прогр
 
 cf_headers = {"Authorization": f"Bearer {cf_api_token}", "Content-Type": "application/json"}
 
-# --- 1. ГЕНЕРАЦИЯ ТЕКСТА (GitHub Models -> Cloudflare -> Резерв) ---
+# --- 1. ГЕНЕРАЦИЯ ТЕКСТА (GitHub -> Cloudflare) ---
 print("1. Генерируем умный текст...")
 text_result = ""
 
