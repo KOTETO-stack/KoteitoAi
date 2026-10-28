@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       prompt:
-        description: 'Запрос'
+        description: 'Запрос (текст + фото + видео)'
         required: true
       chat_id:
         description: 'ID чата Telegram'
