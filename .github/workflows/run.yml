@@ -6,7 +6,7 @@ on:
         description: 'Запрос'
         required: true
       chat_id:
-        description: 'ID чата'
+        description: 'ID чата Telegram'
         required: false
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }} # Добавьте TG_BOT_TOKEN в секреты GitHub!
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           USER_PROMPT: ${{ github.event.inputs.prompt }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}
         run: python main.py
