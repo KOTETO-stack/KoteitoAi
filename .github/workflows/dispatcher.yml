@@ -22,27 +22,29 @@ jobs:
             echo "text=${{ github.event.client_payload.text }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Analyze Intent with LLM (Free Router)
+      - name: Analyze Intent (Multi-Token Fallback)
         id: intent
         run: |
-          # Бесплатные текстовые модели (выбираем одну)
-          MODELS=("meta-llama/Llama-3.1-8B-Instruct" "Qwen/Qwen2.5-7B-Instruct" "microsoft/Phi-3.5-mini-instruct")
-          SUCCESS=0
           INTENT="image"
           PROMPT="${{ steps.user_text.outputs.text }}"
-
-          for MODEL in "${MODELS[@]}"; do
-            echo "Пробуем модель: $MODEL"
+          SUCCESS=0
+          
+          # Список токенов
+          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
+          
+          for HF_TOKEN in "${HF_TOKENS[@]}"; do
+            if [ -z "$HF_TOKEN" ]; then continue; fi
+            
+            echo "Пробуем токен: ${HF_TOKEN:0:5}..."
             RESPONSE=$(curl -s -X POST "https://router.huggingface.co/v1/chat/completions" \
-              -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
+              -H "Authorization: Bearer $HF_TOKEN" \
               -H "Content-Type: application/json" \
               -d "{
-                \"model\": \"$MODEL\",
+                \"model\": \"meta-llama/Llama-3.1-8B-Instruct\",
                 \"messages\": [
                   {\"role\": \"system\", \"content\": \"Ты диспетчер. Верни ТОЛЬКО валидный JSON без markdown-оберток: {\\\"intent\\\":\\\"image|video\\\",\\\"prompt\\\":\\\"детальный промпт на английском\\\"}\"},
                   {\"role\": \"user\", \"content\": \"${{ steps.user_text.outputs.text }}\"}
                 ],
-                \"temperature\": 0.3,
                 \"max_tokens\": 200
               }")
             
@@ -57,7 +59,8 @@ jobs:
                 INTENT=$PARSED_INTENT
                 PROMPT=$PARSED_PROMPT
                 SUCCESS=1
-                echo "✅ Успешно определено: intent=$INTENT, prompt=$PROMPT"
+                # Сохраняем рабочий токен в переменную окружения для следующих шагов
+                echo "WORKING_HF_TOKEN=$HF_TOKEN" >> $GITHUB_ENV
                 break
               fi
             fi
@@ -65,55 +68,73 @@ jobs:
           done
 
           if [ $SUCCESS -eq 0 ]; then
-            echo "⚠️ Не удалось распарсить ответ моделей, используем базовые значения."
+             echo "⚠️ Не удалось распарсить ответ. Используем дефолт."
+             echo "WORKING_HF_TOKEN=${{ secrets.HF_TOKEN_1 }}" >> $GITHUB_ENV
           fi
 
           echo "intent=$INTENT" >> $GITHUB_OUTPUT
           echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
 
-      - name: Generate Image (Free Flux)
+      - name: Generate Image (Multi-Token Fallback)
         if: steps.intent.outputs.intent == 'image'
         run: |
-          echo "Генерируем изображение через Flux.1-schnell..."
-          HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "https://router.huggingface.co/v1/images/generations" \
-            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\": \"black-forest-labs/FLUX.1-schnell\", \"prompt\": \"${{ steps.intent.outputs.prompt }}\", \"response_format\": \"b64_json\"}" \
-            -o hf_image_response.json)
-
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "❌ Ошибка генерации изображения (HTTP $HTTP_CODE):"
-            cat hf_image_response.json
+          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
+          SUCCESS=0
+          
+          for HF_TOKEN in "${HF_TOKENS[@]}"; do
+            if [ -z "$HF_TOKEN" ]; then continue; fi
+            echo "Генерация фото через токен: ${HF_TOKEN:0:5}..."
+            
+            HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "https://router.huggingface.co/v1/images/generations" \
+              -H "Authorization: Bearer $HF_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"model\": \"black-forest-labs/FLUX.1-schnell\", \"prompt\": \"${{ steps.intent.outputs.prompt }}\", \"response_format\": \"b64_json\"}" \
+              -o hf_image_response.json)
+              
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              jq -r '.data[0].b64_json' hf_image_response.json | base64 -d > result.png
+              SUCCESS=1
+              break
+            fi
+            sleep 2
+          done
+          
+          if [ $SUCCESS -eq 0 ]; then
+            echo "❌ Все токены вернули ошибку при генерации фото."
             exit 1
           fi
 
-          jq -r '.data[0].b64_json' hf_image_response.json | base64 -d > result.png
-          echo "✅ Изображение успешно сгенерировано."
-
-      - name: Generate Video (Free Wan-AI I2V)
+      - name: Generate Video (Multi-Token Fallback)
         if: steps.intent.outputs.intent == 'video'
         run: |
-          echo "Генерируем видео через Wan-AI..."
-          HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "https://router.huggingface.co/v1/video/generations" \
-            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"model\": \"Wan-AI/Wan2.2-I2V-A14B\", \"prompt\": \"${{ steps.intent.outputs.prompt }}\"}" \
-            -o hf_video_response.json)
-
-          if [ "$HTTP_CODE" -ne 200 ]; then
-            echo "❌ Ошибка генерации видео (HTTP $HTTP_CODE):"
-            cat hf_video_response.json
+          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
+          SUCCESS=0
+          
+          for HF_TOKEN in "${HF_TOKENS[@]}"; do
+            if [ -z "$HF_TOKEN" ]; then continue; fi
+            echo "Генерация видео через токен: ${HF_TOKEN:0:5}..."
+            
+            HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "https://router.huggingface.co/v1/video/generations" \
+              -H "Authorization: Bearer $HF_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"model\": \"Wan-AI/Wan2.2-I2V-A14B\", \"prompt\": \"${{ steps.intent.outputs.prompt }}\"}" \
+              -o hf_video_response.json)
+              
+            if [ "$HTTP_CODE" -eq 200 ]; then
+              VIDEO_URL=$(jq -r '.data[0].url // empty' hf_video_response.json)
+              if [ -n "$VIDEO_URL" ]; then
+                curl -s -L "$VIDEO_URL" -o result.mp4
+                SUCCESS=1
+                break
+              fi
+            fi
+            sleep 2
+          done
+          
+          if [ $SUCCESS -eq 0 ]; then
+            echo "❌ Все токены вернули ошибку при генерации видео."
             exit 1
           fi
-
-          VIDEO_URL=$(jq -r '.data[0].url // empty' hf_video_response.json)
-          if [ -n "$VIDEO_URL" ]; then
-            curl -s -L "$VIDEO_URL" -o result.mp4
-          else
-            echo "❌ Не удалось получить ссылку на видео."
-            exit 1
-          fi
-          echo "✅ Видео успешно сгенерировано."
 
       - name: Send Photo to Telegram
         if: steps.intent.outputs.intent == 'image'
