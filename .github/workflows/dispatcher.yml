@@ -29,8 +29,7 @@ jobs:
           PROMPT="${{ steps.user_text.outputs.text }}"
           SUCCESS=0
           
-          # Список токенов
-          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
+          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}")
           
           for HF_TOKEN in "${HF_TOKENS[@]}"; do
             if [ -z "$HF_TOKEN" ]; then continue; fi
@@ -42,7 +41,7 @@ jobs:
               -d "{
                 \"model\": \"meta-llama/Llama-3.1-8B-Instruct\",
                 \"messages\": [
-                  {\"role\": \"system\", \"content\": \"Ты диспетчер. Верни ТОЛЬКО валидный JSON без markdown-оберток: {\\\"intent\\\":\\\"image|video\\\",\\\"prompt\\\":\\\"детальный промпт на английском\\\"}\"},
+                  {\"role\": \"system\", \"content\": \"Ты диспетчер. Верни ТОЛЬКО валидный JSON без markdown-оберток: {\\\"intent\\\":\\\"image\\\",\\\"prompt\\\":\\\"детальный промпт на английском\\\"}\"},
                   {\"role\": \"user\", \"content\": \"${{ steps.user_text.outputs.text }}\"}
                 ],
                 \"max_tokens\": 200
@@ -59,7 +58,6 @@ jobs:
                 INTENT=$PARSED_INTENT
                 PROMPT=$PARSED_PROMPT
                 SUCCESS=1
-                # Сохраняем рабочий токен в переменную окружения для следующих шагов
                 echo "WORKING_HF_TOKEN=$HF_TOKEN" >> $GITHUB_ENV
                 break
               fi
@@ -78,7 +76,7 @@ jobs:
       - name: Generate Image (Multi-Token Fallback)
         if: steps.intent.outputs.intent == 'image'
         run: |
-          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
+          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}")
           SUCCESS=0
           
           for HF_TOKEN in "${HF_TOKENS[@]}"; do
@@ -101,38 +99,7 @@ jobs:
           
           if [ $SUCCESS -eq 0 ]; then
             echo "❌ Все токены вернули ошибку при генерации фото."
-            exit 1
-          fi
-
-      - name: Generate Video (Multi-Token Fallback)
-        if: steps.intent.outputs.intent == 'video'
-        run: |
-          HF_TOKENS=("${{ secrets.HF_TOKEN_1 }}" "${{ secrets.HF_TOKEN_2 }}")
-          SUCCESS=0
-          
-          for HF_TOKEN in "${HF_TOKENS[@]}"; do
-            if [ -z "$HF_TOKEN" ]; then continue; fi
-            echo "Генерация видео через токен: ${HF_TOKEN:0:5}..."
-            
-            HTTP_CODE=$(curl -s -w "%{http_code}" -X POST "https://router.huggingface.co/v1/video/generations" \
-              -H "Authorization: Bearer $HF_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"model\": \"Wan-AI/Wan2.2-I2V-A14B\", \"prompt\": \"${{ steps.intent.outputs.prompt }}\"}" \
-              -o hf_video_response.json)
-              
-            if [ "$HTTP_CODE" -eq 200 ]; then
-              VIDEO_URL=$(jq -r '.data[0].url // empty' hf_video_response.json)
-              if [ -n "$VIDEO_URL" ]; then
-                curl -s -L "$VIDEO_URL" -o result.mp4
-                SUCCESS=1
-                break
-              fi
-            fi
-            sleep 2
-          done
-          
-          if [ $SUCCESS -eq 0 ]; then
-            echo "❌ Все токены вернули ошибку при генерации видео."
+            cat hf_image_response.json
             exit 1
           fi
 
@@ -143,11 +110,3 @@ jobs:
                -F "photo=@result.png" \
                -F "caption=🖼️ ${{ steps.user_text.outputs.text }}" \
                "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendPhoto"
-
-      - name: Send Video to Telegram
-        if: steps.intent.outputs.intent == 'video'
-        run: |
-          curl -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-               -F "video=@result.mp4" \
-               -F "caption=🎬 ${{ steps.user_text.outputs.text }}" \
-               "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendVideo"
