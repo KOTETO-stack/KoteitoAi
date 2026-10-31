@@ -1,0 +1,47 @@
+name: AI Dispatcher
+
+on:
+  repository_dispatch:
+    types: [new_message]
+
+jobs:
+  process_message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Analyze Intent with Hugging Face
+        id: intent
+        run: |
+          # Отправляем текст пользователя в LLM, чтобы понять, что он хочет
+          RESPONSE=$(curl -s -X POST "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct" \
+            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "inputs": "Ты — диспетчер. Проанализируй сообщение: \"${{ github.event.client_payload.text }}\". Верни ТОЛЬКО JSON {\"intent\": \"image\" | \"video\" | \"text\", \"prompt\": \"улучшенный промпт на английском\"}."
+            }')
+          
+          # Извлекаем JSON из ответа (упрощенно)
+          INTENT=$(echo $RESPONSE | jq -r '.[0].generated_text' | grep -oP '(?<=\{"intent": ")[^"]*')
+          PROMPT=$(echo $RESPONSE | jq -r '.[0].generated_text' | grep -oP '(?<="prompt": ")[^"]*')
+          
+          echo "intent=$INTENT" >> $GITHUB_OUTPUT
+          echo "prompt=$PROMPT" >> $GITHUB_OUTPUT
+
+      - name: Generate Image
+        if: steps.intent.outputs.intent == 'image'
+        run: |
+          # Сохраняем картинку, которую вернет HF
+          curl -s -X POST "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell" \
+            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"inputs\": \"${{ steps.intent.outputs.prompt }}\"}" \
+            --output generated_image.png
+
+      - name: Send result back to Telegram
+        run: |
+          # Отправляем фото в Telegram
+          curl -F "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+               -F "photo=@generated_image.png" \
+               "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendPhoto"
